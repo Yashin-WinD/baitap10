@@ -1,7 +1,7 @@
 package vn.iotstar;
 
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.security.SignatureException;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.proc.BadJOSEException;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
@@ -10,6 +10,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.text.ParseException;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -17,7 +19,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleSecurityException(Exception exception) {
         ProblemDetail errorDetail = null;
 
-        // TODO send this stack trace to an observability tool
+        // In stacktrace ra log
         exception.printStackTrace();
 
         if (exception instanceof BadCredentialsException) {
@@ -38,15 +40,21 @@ public class GlobalExceptionHandler {
             return errorDetail;
         }
 
-        if (exception instanceof SignatureException) {
+        if (exception instanceof BadJOSEException || exception.getCause() instanceof BadJOSEException) {
             errorDetail = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), exception.getMessage());
-            errorDetail.setProperty("description", "The JWT signature is invalid");
+            errorDetail.setProperty("description", "The JWT signature is invalid or expired");
             return errorDetail;
         }
 
-        if (exception instanceof ExpiredJwtException) {
+        if (exception instanceof ParseException || exception.getCause() instanceof ParseException) {
+            errorDetail = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(500), exception.getMessage());
+            errorDetail.setProperty("description", "Malformed JWT string");
+            return errorDetail;
+        }
+
+        if (exception instanceof JOSEException || exception.getCause() instanceof JOSEException) {
             errorDetail = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), exception.getMessage());
-            errorDetail.setProperty("description", "The JWT token has expired");
+            errorDetail.setProperty("description", "JOSE processing error");
             return errorDetail;
         }
 
